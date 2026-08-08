@@ -1,0 +1,252 @@
+name: Generate GitHub Stats
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Create stats SVG
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p dist
+
+          node <<'EOF'
+          const https = require("https");
+          const fs = require("fs");
+
+          const username = "Rishabh8931";
+
+          const query = `
+            query($login: String!) {
+              user(login: $login) {
+                name
+                login
+                followers {
+                  totalCount
+                }
+                repositories(first: 100, ownerAffiliations: OWNER) {
+                  totalCount
+                  nodes {
+                    stargazerCount
+                    forkCount
+                    primaryLanguage {
+                      name
+                    }
+                  }
+                }
+              }
+            }
+          `;
+
+          const body = JSON.stringify({
+            query,
+            variables: { login: username }
+          });
+
+          const options = {
+            hostname: "api.github.com",
+            path: "/graphql",
+            method: "POST",
+            headers: {
+              "User-Agent": "github-stats-generator",
+              "Authorization": `Bearer ${process.env.GITHUB_TOKEN}`,
+              "Content-Type": "application/json",
+              "Content-Length": Buffer.byteLength(body)
+            }
+          };
+
+          const req = https.request(options, res => {
+            let data = "";
+
+            res.on("data", chunk => {
+              data += chunk;
+            });
+
+            res.on("end", () => {
+              const result = JSON.parse(data);
+
+              if (result.errors) {
+                console.error(result.errors);
+                process.exit(1);
+              }
+
+              const user = result.data.user;
+
+              const stars = user.repositories.nodes.reduce(
+                (sum, repo) => sum + repo.stargazerCount,
+                0
+              );
+
+              const forks = user.repositories.nodes.reduce(
+                (sum, repo) => sum + repo.forkCount,
+                0
+              );
+
+              const svg = `
+          <svg width="850" height="260"
+               xmlns="http://www.w3.org/2000/svg">
+
+            <defs>
+              <linearGradient id="bg" x1="0" x2="1">
+                <stop offset="0%" stop-color="#0f172a"/>
+                <stop offset="100%" stop-color="#111827"/>
+              </linearGradient>
+            </defs>
+
+            <rect
+              width="850"
+              height="260"
+              rx="18"
+              fill="url(#bg)"
+              stroke="#30363d"
+            />
+
+            <text
+              x="40"
+              y="55"
+              fill="#58a6ff"
+              font-size="28"
+              font-family="Arial"
+              font-weight="bold">
+              GitHub Snapshot
+            </text>
+
+            <text
+              x="40"
+              y="88"
+              fill="#8b949e"
+              font-size="16"
+              font-family="Arial">
+              @${user.login}
+            </text>
+
+            <text
+              x="70"
+              y="145"
+              fill="#ffffff"
+              font-size="28"
+              font-family="Arial"
+              font-weight="bold">
+              ${user.repositories.totalCount}
+            </text>
+
+            <text
+              x="70"
+              y="175"
+              fill="#8b949e"
+              font-size="14"
+              font-family="Arial">
+              Repositories
+            </text>
+
+            <text
+              x="290"
+              y="145"
+              fill="#ffffff"
+              font-size="28"
+              font-family="Arial"
+              font-weight="bold">
+              ${stars}
+            </text>
+
+            <text
+              x="290"
+              y="175"
+              fill="#8b949e"
+              font-size="14"
+              font-family="Arial">
+              Stars
+            </text>
+
+            <text
+              x="510"
+              y="145"
+              fill="#ffffff"
+              font-size="28"
+              font-family="Arial"
+              font-weight="bold">
+              ${forks}
+            </text>
+
+            <text
+              x="510"
+              y="175"
+              fill="#8b949e"
+              font-size="14"
+              font-family="Arial">
+              Forks
+            </text>
+
+            <text
+              x="700"
+              y="145"
+              fill="#ffffff"
+              font-size="28"
+              font-family="Arial"
+              font-weight="bold">
+              ${user.followers.totalCount}
+            </text>
+
+            <text
+              x="700"
+              y="175"
+              fill="#8b949e"
+              font-size="14"
+              font-family="Arial">
+              Followers
+            </text>
+
+            <text
+              x="40"
+              y="225"
+              fill="#8b949e"
+              font-size="13"
+              font-family="Arial">
+              Generated automatically via GitHub Actions
+            </text>
+
+          </svg>
+              `;
+
+              fs.writeFileSync(
+                "dist/github-stats.svg",
+                svg.trim()
+              );
+
+              console.log("Stats generated successfully.");
+            });
+          });
+
+          req.on("error", error => {
+            console.error(error);
+            process.exit(1);
+          });
+
+          req.write(body);
+          req.end();
+          EOF
+
+      - name: Publish stats
+        uses: crazy-max/ghaction-github-pages@v4
+        with:
+          build_dir: dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
