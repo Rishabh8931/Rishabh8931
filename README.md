@@ -203,18 +203,6 @@ Understand identity systems beyond simply adding an authentication library.
 <div align="center">
 
 <img
-  height="180"
-  src="https://github-readme-stats.vercel.app/api?username=Rishabh8931&show_icons=true&theme=tokyonight&hide_border=true&rank_icon=github&include_all_commits=true"
-/>
-
-<img
-  height="180"
-  src="https://github-readme-stats.vercel.app/api/top-langs/?username=Rishabh8931&layout=compact&theme=tokyonight&hide_border=true&langs_count=8"
-/>
-
-<br/><br/>
-
-<img
   src="https://streak-stats.demolab.com?user=Rishabh8931&theme=tokyonight&hide_border=true"
   alt="GitHub Contribution Streak"
 />
